@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,7 +64,7 @@ internal fun PlayerScreen(
         Column(
             modifier = Modifier.fillMaxSize().background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(accent.copy(alpha = 0.11f), Background, Background)
+                    listOf(accent.copy(alpha = 0.20f), blendColor(Background, accent, 0.05f), Background)
                 )
             )
                 .padding(horizontal = 18.dp)
@@ -122,13 +123,21 @@ internal fun PlayerScreen(
             Spacer(Modifier.height(24.dp))
             val safeDuration = durationMs.coerceAtLeast(0L)
             val progress = if (safeDuration > 0L) (positionMs.toFloat() / safeDuration).coerceIn(0f, 1f) else 0f
+            // While the thumb is held the bar follows the finger and the audio is only seeked once on release,
+            // so playback position updates cannot fight the drag and the thumb no longer jumps.
+            var dragFraction by remember { mutableStateOf<Float?>(null) }
+            val shownPosition = dragFraction?.let { (safeDuration * it).toLong() } ?: positionMs
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatPlayerTime(positionMs), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(formatPlayerTime(shownPosition), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 Text(formatPlayerTime(durationMs), color = TextMuted, fontSize = 12.sp)
             }
             Slider(
-                value = progress,
-                onValueChange = { fraction -> if (safeDuration > 0L) onSeek((safeDuration * fraction).toLong()) },
+                value = dragFraction ?: progress,
+                onValueChange = { fraction -> if (safeDuration > 0L) dragFraction = fraction },
+                onValueChangeFinished = {
+                    dragFraction?.let { fraction -> if (safeDuration > 0L) onSeek((safeDuration * fraction).toLong()) }
+                    dragFraction = null
+                },
                 enabled = safeDuration > 0L,
                 modifier = Modifier.fillMaxWidth().height(30.dp),
                 colors = SliderDefaults.colors(
@@ -180,14 +189,19 @@ internal fun PlayerScreen(
                     WingSkipGlyph(next = true, tint = accent, modifier = Modifier.size(48.dp))
                 }
                 IconButton(onClick = onCycleRepeat, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Repeat, "Repeat mode", tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) accent else TextMuted, modifier = Modifier.size(23.dp))
+                    Icon(
+                        if (repeatMode == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                        "Repeat mode",
+                        tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) accent else TextMuted,
+                        modifier = Modifier.size(23.dp)
+                    )
                 }
             }
             Text(
-                when (repeatMode) {
+                "SHUFFLE ${if (shuffleEnabled) "ON" else "OFF"}  ·  " + when (repeatMode) {
                     androidx.media3.common.Player.REPEAT_MODE_ONE -> "REPEAT ONE"
                     androidx.media3.common.Player.REPEAT_MODE_ALL -> "REPEAT ALL"
-                    else -> "SHUFFLE ${if (shuffleEnabled) "ON" else "OFF"}"
+                    else -> "REPEAT OFF"
                 },
                 color = TextMuted,
                 fontSize = 9.sp,
@@ -393,15 +407,7 @@ internal fun LyricsScreen(
     }
 }
 
-private fun tintSurface(base: Color, tint: Color, amount: Float): Color {
-    val t = amount.coerceIn(0f, 1f)
-    return Color(
-        red = base.red * (1f - t) + tint.red * t,
-        green = base.green * (1f - t) + tint.green * t,
-        blue = base.blue * (1f - t) + tint.blue * t,
-        alpha = base.alpha
-    )
-}
+private fun tintSurface(base: Color, tint: Color, amount: Float): Color = blendColor(base, tint, amount)
 
 private fun formatPlayerTime(ms: Long): String {
     val totalSeconds = (ms.coerceAtLeast(0L) / 1000L).toInt()

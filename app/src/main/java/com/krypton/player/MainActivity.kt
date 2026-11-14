@@ -12,10 +12,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,14 +48,18 @@ import kotlinx.coroutines.withContext
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-internal val Background = Color(0xFF000000)
-internal val Surface = Color(0xFF0B0D10)
-internal val SurfaceRaised = Color(0xFF171A1F)
-internal val Accent = Color(0xFFE9EBEF)
-internal val AccentDeep = Color(0xFFADB3BC)
-internal val TextPrimary = Color(0xFFF4F5F7)
-internal val TextMuted = Color(0xFF9298A1)
-internal val DividerColor = Color(0xFF282C33)
+// App-wide colour tokens. They forward to the selected theme (see Themes.kt), so every
+// screen that uses them restyles instantly when the theme changes in Settings.
+internal val Background: Color get() = ThemeState.current.background
+internal val Surface: Color get() = ThemeState.current.surface
+internal val SurfaceRaised: Color get() = ThemeState.current.surfaceRaised
+internal val SurfaceHigh: Color get() = ThemeState.current.surfaceHigh
+internal val Accent: Color get() = ThemeState.current.accent
+internal val AccentDeep: Color get() = ThemeState.current.accentDeep
+internal val TextPrimary: Color get() = ThemeState.current.textPrimary
+internal val TextSecondary: Color get() = ThemeState.current.textSecondary
+internal val TextMuted: Color get() = ThemeState.current.textMuted
+internal val DividerColor: Color get() = ThemeState.current.divider
 
 internal data class QueueTrack(
     val index: Int,
@@ -108,8 +115,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) loadTracks()
+        requestNotificationPermissionIfNeeded()
+    }
+
+    // Android 13+ hides the media notification (and its lock-screen controls) until this is granted.
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun applyWindowTheme(theme: KryptonTheme) {
+        val color = theme.background.toArgb()
+        window.statusBarColor = color
+        window.navigationBarColor = color
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(color))
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
     }
 
     private val importM3u = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -124,17 +152,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ThemeState.load(this)
         WindowCompat.setDecorFitsSystemWindows(window, true)
-        window.statusBarColor = android.graphics.Color.BLACK
-        window.navigationBarColor = android.graphics.Color.BLACK
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
         }
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
+        applyWindowTheme(ThemeState.current)
         playlistRepository = PlaylistRepository(this)
         playlists = playlistRepository.all()
         lyricsFolderTreeUri = getSharedPreferences("krypton_lyrics", MODE_PRIVATE)
@@ -148,19 +172,23 @@ class MainActivity : ComponentActivity() {
         }, MoreExecutors.directExecutor())
 
         val readPermission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
-        if (ContextCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED) loadTracks()
-        else permission.launch(readPermission)
+        if (ContextCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED) {
+            loadTracks()
+            requestNotificationPermissionIfNeeded()
+        } else permission.launch(readPermission)
 
         setContent {
+            val activeTheme = ThemeState.current
+            SideEffect { applyWindowTheme(activeTheme) }
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    background = Background,
-                    surface = Surface,
-                    primary = Accent,
-                    secondary = AccentDeep,
-                    onBackground = TextPrimary,
-                    onSurface = TextPrimary,
-                    onPrimary = Background
+                    background = activeTheme.background,
+                    surface = activeTheme.surface,
+                    primary = activeTheme.accent,
+                    secondary = activeTheme.accentDeep,
+                    onBackground = activeTheme.textPrimary,
+                    onSurface = activeTheme.textPrimary,
+                    onPrimary = activeTheme.background
                 )
             ) {
                 KryptonApp(
@@ -359,8 +387,10 @@ private fun KryptonApp(
             selectedTab
         }
     }
-    val activeTrack = tracks.firstOrNull { it.id.toString() == controller?.currentMediaItem?.mediaId }
-    val activeAccent by rememberArtworkAccent(activeTrack)
+    val currentMediaId = controller?.currentMediaItem?.mediaId
+    val activeTrack = remember(tracks, currentMediaId) { tracks.firstOrNull { it.id.toString() == currentMediaId } }
+    val artworkAccent by rememberArtworkAccent(activeTrack)
+    val activeAccent = if (ThemeState.useArtworkAccent) artworkAccent else Accent
     LaunchedEffect(activeTrack?.id, lyricsFolderTreeUri) {
         activeTrack?.let { onDetectLyrics(it, lyricsFolderTreeUri) }
     }
@@ -385,7 +415,8 @@ private fun KryptonApp(
     var shuffleEnabled by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
     var queueSheetOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = true) {
+    // At the Library root Back is left to the system (the app leaves the screen, playback continues in the service).
+    BackHandler(enabled = queueSheetOpen || selectedTab != "Library") {
         if (queueSheetOpen) queueSheetOpen = false else navigateBack()
     }
     fun startTrackAndOpenPlayer(sequence: List<Track>, selected: Track?) {
@@ -394,6 +425,16 @@ private fun KryptonApp(
         navigateTo("Queue")
     }
     var statsRevision by remember { mutableIntStateOf(0) }
+
+    val latestTracks by rememberUpdatedState(tracks)
+    val trackById = remember(tracks) { tracks.associateBy { it.id.toString() } }
+    val latestTrackById by rememberUpdatedState(trackById)
+
+    fun refreshPosition() {
+        val player = controller ?: return
+        currentPosition = player.currentPosition.coerceAtLeast(0L)
+        duration = player.duration.takeIf { it > 0L } ?: 0L
+    }
 
     fun refreshPlayerState() {
         val player = controller ?: return
@@ -409,7 +450,7 @@ private fun KryptonApp(
                 title = item.mediaMetadata.title?.toString() ?: "Track ${index + 1}",
                 artist = item.mediaMetadata.artist?.toString() ?: "Unknown artist",
                 isCurrent = index == player.currentMediaItemIndex,
-                track = tracks.firstOrNull { it.id.toString() == item.mediaId }
+                track = latestTrackById[item.mediaId]
             )
         }
         currentPosition = player.currentPosition.coerceAtLeast(0L)
@@ -427,7 +468,18 @@ private fun KryptonApp(
         onDispose { controller?.removeListener(playerListener) }
     }
 
-    val latestTracks by rememberUpdatedState(tracks)
+    // The library usually finishes loading after the controller connects: rebuild the queue so rows get their artwork.
+    LaunchedEffect(trackById) { refreshPlayerState() }
+
+    // Smooth seek bar / lyric sync: a cheap position-only tick, much faster than the 1 s statistics loop.
+    LaunchedEffect(controller) {
+        while (true) {
+            val player = controller
+            if (player != null) refreshPosition()
+            kotlinx.coroutines.delay(if (player?.isPlaying == true) 250L else 600L)
+        }
+    }
+
     LaunchedEffect(controller) {
         var previousToken = ""
         var countedThisPlay = false
@@ -460,7 +512,6 @@ private fun KryptonApp(
                 previousTick = now
                 tick++
                 if (tick % 5 == 0) statsRevision++
-                refreshPlayerState()
             }
             kotlinx.coroutines.delay(1000L)
         }
@@ -473,19 +524,26 @@ private fun KryptonApp(
         bottomBar = {
             // No persistent Library/Queue tab strip. The compact now-playing bar is
             // present only during active playback and is the route back to the Player.
-            if (isPlaying && controller?.currentMediaItem != null && selectedTab != "Queue") {
+            if (controller?.currentMediaItem != null && selectedTab != "Queue") {
                 MiniPlayerBar(
                     track = activeTrack,
                     title = currentTitle,
                     artist = currentArtist,
+                    playing = isPlaying,
+                    positionMs = currentPosition,
+                    durationMs = duration,
                     onOpen = { navigateTo("Queue") },
-                    onPause = { controller?.pause() },
+                    onPlayPause = { controller?.let { player -> if (player.isPlaying) player.pause() else player.play() } },
                     onNext = { controller?.seekToNextMediaItem() }
                 )
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            Modifier.fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Accent.copy(alpha = 0.10f), Color.Transparent), endY = 900f))
+                .padding(padding)
+        ) {
             when (selectedTab) {
                 "Library" -> {
                     AppHeader(section = "Library", onRefresh = onRefresh, onSettings = { navigateTo("Settings") })
@@ -520,9 +578,9 @@ private fun KryptonApp(
                         onOpenQueue = { queueSheetOpen = true },
                         onOpenLyrics = { navigateTo("Lyrics") },
                         onPlayPause = { controller?.let { player -> if (player.isPlaying) player.pause() else player.play() } },
-                        onPrevious = { controller?.seekToPreviousMediaItem() },
+                        onPrevious = { controller?.seekToPrevious() },
                         onNext = { controller?.seekToNextMediaItem() },
-                        onSeek = { target -> controller?.seekTo(target) },
+                        onSeek = { target -> controller?.seekTo(target); currentPosition = target },
                         onToggleShuffle = { controller?.let { player -> player.shuffleModeEnabled = !player.shuffleModeEnabled; refreshPlayerState() } },
                         onCycleRepeat = {
                             controller?.let { player ->
@@ -609,32 +667,47 @@ private fun MiniPlayerBar(
     track: Track?,
     title: String,
     artist: String,
+    playing: Boolean,
+    positionMs: Long,
+    durationMs: Long,
     onOpen: () -> Unit,
-    onPause: () -> Unit,
+    onPlayPause: () -> Unit,
     onNext: () -> Unit
 ) {
-    Row(
+    val fraction = if (durationMs > 0L) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 7.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(SurfaceRaised)
             .clickable(onClick = onOpen)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        TrackArtwork(track = track, modifier = Modifier.size(44.dp), cornerRadius = 10.dp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(2.dp))
-            Text(artist, color = TextMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TrackArtwork(track = track, modifier = Modifier.size(44.dp), cornerRadius = 10.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Text(artist, color = TextMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            IconButton(onClick = onPlayPause, modifier = Modifier.size(38.dp)) {
+                Icon(
+                    if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (playing) "Pause playback" else "Resume playback",
+                    tint = Accent,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            IconButton(onClick = onNext, modifier = Modifier.size(38.dp)) {
+                Icon(Icons.Default.SkipNext, contentDescription = "Next track", tint = TextPrimary, modifier = Modifier.size(22.dp))
+            }
         }
-        IconButton(onClick = onPause, modifier = Modifier.size(38.dp)) {
-            Icon(Icons.Default.Pause, contentDescription = "Pause playback", tint = TextPrimary, modifier = Modifier.size(21.dp))
-        }
-        IconButton(onClick = onNext, modifier = Modifier.size(38.dp)) {
-            Icon(Icons.Default.SkipNext, contentDescription = "Next track", tint = TextPrimary, modifier = Modifier.size(22.dp))
+        Box(Modifier.fillMaxWidth().height(2.dp).background(DividerColor)) {
+            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Accent))
         }
     }
 }
@@ -652,7 +725,7 @@ private fun AppHeader(
     ) {
         Box(
             modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                .background(Brush.linearGradient(listOf(Accent, Color(0xFFB6BAC1)))),
+                .background(Brush.linearGradient(listOf(Accent, AccentDeep))),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Background, modifier = Modifier.size(25.dp)) }
         Spacer(Modifier.width(12.dp))
@@ -692,8 +765,102 @@ private fun SettingsScreen(modifier: Modifier = Modifier, onOpenLockScreen: () -
         item { SettingsGroupLabel("PERSONALIZATION") }
         item { LockScreenSettingsCard(onOpen = onOpenLockScreen) }
         item { SettingsCard(Icons.Default.Equalizer, "Equalizer & sound effects", "Service-managed graphic EQ with device-supported bass boost and stereo virtualizer controls.", "PLAYBACK SESSION LINKED") }
-        item { SettingsCard(Icons.Default.Palette, "Appearance", "Krypton is currently using its dark studio theme.", "DARK THEME") }
+        item { ThemePickerCard() }
+        item { ArtworkAccentCard() }
         item { Text("KRYPTON PLAYER  ·  OFFLINE FIRST", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.5.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+    }
+}
+
+@Composable
+private fun ThemePickerCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val selected = ThemeState.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(Surface).padding(15.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(SurfaceRaised), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Palette, contentDescription = null, tint = Accent, modifier = Modifier.size(21.dp))
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Appearance", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(3.dp))
+                Text("Pick a colour theme. The whole app restyles instantly.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        KryptonThemes.all.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { theme ->
+                    ThemeTile(
+                        theme = theme,
+                        selected = theme.id == selected.id,
+                        modifier = Modifier.weight(1f),
+                        onClick = { ThemeState.select(context, theme) }
+                    )
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+        Text("ACTIVE THEME  ·  ${selected.label.uppercase()}", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+    }
+}
+
+/** Each tile previews its own palette (it deliberately does not use the live theme tokens). */
+@Composable
+private fun ThemeTile(theme: KryptonTheme, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(theme.background)
+            .border(if (selected) 2.dp else 1.dp, if (selected) theme.accent else theme.divider, shape)
+            .clickable(onClick = onClick)
+            .padding(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(11.dp)).background(theme.surfaceRaised).padding(horizontal = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(16.dp).clip(CircleShape).background(theme.accent))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(theme.divider)) {
+                Box(Modifier.fillMaxWidth(0.55f).fillMaxHeight().background(theme.accent))
+            }
+        }
+        Spacer(Modifier.height(9.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(theme.label, color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (selected) Icon(Icons.Default.Check, contentDescription = "Selected", tint = theme.accent, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun ArtworkAccentCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(Surface).padding(15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Artwork colours on Player", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Text("On: the Player, Queue and Lyrics take their accent from the cover art. Off: they always use the theme accent.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = ThemeState.useArtworkAccent,
+            onCheckedChange = { ThemeState.setArtworkAccent(context, it) },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Background,
+                checkedTrackColor = Accent,
+                checkedBorderColor = Accent,
+                uncheckedThumbColor = TextMuted,
+                uncheckedTrackColor = SurfaceRaised,
+                uncheckedBorderColor = DividerColor
+            )
+        )
     }
 }
 

@@ -1,6 +1,7 @@
 # Project map
 
 - `app/src/main/java/com/krypton/player/MainActivity.kt` — navigation, MediaController, M3U document-picking, playback and listening-stat collection
+- `Themes.kt` — theme palettes (Mono, Midnight, Ember, Emerald, Violet, Rose), ThemeState persistence, blendColor helper
 - `LibraryScreen.kt` — compact 3-page swipe carousel, search, collection sort/reverse control, favorites and track list
 - `PlaylistScreens.kt` — playlist collection/detail screens, add/remove songs, playlist sorting and shuffle actions
 - `StatisticsScreen.kt` — listening metric cards, seven-day chart and most-listened ranking

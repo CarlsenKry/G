@@ -14,6 +14,7 @@ Krypton Player is a native Android offline music-player starter built with Kotli
 - Full adaptive Now Playing screen with embedded album artwork, progress seeking, wing-shaped Previous/Next controls and rounded-pill Play/Pause control, plus shuffle and repeat. The persistent bottom Library / Queue tabs are removed; a compact now-playing bar appears only during active playback on non-Player screens. Selecting a song from the Library opens Now Playing directly.
 - Queue sheet opened from the player toolbar; it preserves queue order and highlights the active track.
 - A right-edge Lyrics affordance opens the synchronized lyrics view. On song changes, Krypton automatically checks same-folder `.lrc` sidecars, embedded ID3 USLT/SYLT/TXXX lyrics, FLAC Vorbis comments, Ogg/Opus comments and iTunes-style M4A lyric atoms. Timed lines follow playback; a one-time folder grant enables reliable sidecar discovery on Android versions with scoped storage.
+- Six colour themes (Mono, Midnight, Ember, Emerald, Violet, Rose) chosen in Settings > Appearance and applied app-wide instantly, with an option to keep or drop artwork-derived colours on the Player.
 - Custom AMOLED lockscreen player available from Settings: compact clock, rounded-square cover, pure black (unblurred) background, artwork-reactive high-contrast accents, queue sheet at upper left, live shuffle toggle at upper right, wing-shaped Previous/Next, rounded-pill Play/Pause, no playback seekbar, and a bottom slide handle.
 - Service-owned Android Equalizer, BassBoost and Virtualizer effects connected through Media3 audio-session callbacks. Device-supported presets and bands are discovered at runtime; supported settings persist locally and remain active while playback continues in the background.
 
@@ -57,6 +58,7 @@ For manual dispatch, GitHub requires the workflow file to exist on the repositor
 ## Project map
 
 - `app/src/main/java/com/krypton/player/MainActivity.kt` — app navigation, MediaController connection, M3U document-picker flows and playback-stat collection
+- `Themes.kt` — theme palettes, persisted theme state and colour blending helper
 - `LibraryScreen.kt` — compact three-page carousel, search, song list, sort/reverse controls and favorites
 - `PlaylistScreens.kt` — playlist collection, detail, editing and M3U-related UI
 - `StatisticsScreen.kt` — listening metrics, seven-day chart and most-listened list

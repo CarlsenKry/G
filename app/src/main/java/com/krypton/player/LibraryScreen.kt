@@ -128,7 +128,7 @@ internal fun LibraryScreen(
             }
             Box(
                 modifier = Modifier.size(38.dp).clip(CircleShape)
-                    .background(if (inverted) Color(0xFF252A31) else SurfaceRaised)
+                    .background(if (inverted) SurfaceHigh else SurfaceRaised)
                     .clickable { inverted = !inverted },
                 contentAlignment = Alignment.Center
             ) {
@@ -173,7 +173,7 @@ private fun LibraryHeroCarousel(
             contentPadding = PaddingValues(horizontal = 18.dp),
             pageSpacing = 9.dp
         ) { page ->
-            val heroBrush = Brush.linearGradient(listOf(Color(0xFF1A1C21), Color(0xFF101216), Color(0xFF1D1F24)))
+            val heroBrush = Brush.linearGradient(listOf(blendColor(SurfaceHigh, Accent, 0.22f), Surface, blendColor(SurfaceRaised, Accent, 0.10f)))
             Row(
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp)).background(heroBrush).padding(horizontal = 15.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -183,28 +183,28 @@ private fun LibraryHeroCarousel(
                         0 -> {
                             Text("YOUR MUSIC. YOUR MOMENT.", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(5.dp))
-                            Text(if (trackCount == 0) "Your offline listening space" else "$trackCount tracks · Stored on this device", color = Color(0xFFB7BBC2), fontSize = 10.sp, maxLines = 1)
+                            Text(if (trackCount == 0) "Your offline listening space" else "$trackCount tracks · Stored on this device", color = TextSecondary, fontSize = 10.sp, maxLines = 1)
                             Spacer(Modifier.height(8.dp))
                             HeroAction("PLAY LIBRARY", Icons.Default.PlayArrow, enabled = hasTracks, onClick = onPlayLibrary)
                         }
                         1 -> {
                             Text("YOUR PLAYLISTS.", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                             Spacer(Modifier.height(5.dp))
-                            Text("Create, organize and import M3U lists", color = Color(0xFFB7BBC2), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Create, organize and import M3U lists", color = TextSecondary, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(8.dp))
                             HeroAction("OPEN PLAYLISTS", Icons.Default.PlaylistPlay, onClick = onOpenPlaylists)
                         }
                         else -> {
                             Text("YOUR LISTENING.", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                             Spacer(Modifier.height(5.dp))
-                            Text("See your time, plays and favorites", color = Color(0xFFB7BBC2), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("See your time, plays and favorites", color = TextSecondary, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(8.dp))
                             HeroAction("VIEW STATISTICS", Icons.Default.BarChart, onClick = onOpenStatistics)
                         }
                     }
                 }
                 Box(
-                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF22262C)),
+                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(blendColor(SurfaceHigh, Accent, 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -222,7 +222,7 @@ private fun LibraryHeroCarousel(
                 val active = pagerState.currentPage == index
                 Box(
                     Modifier.padding(horizontal = 3.dp).size(width = if (active) 16.dp else 6.dp, height = 6.dp)
-                        .clip(CircleShape).background(if (active) Accent else Color(0xFF434851))
+                        .clip(CircleShape).background(if (active) Accent else DividerColor)
                         .clickable { scope.launch { pagerState.animateScrollToPage(index) } }
                 )
             }
@@ -238,7 +238,7 @@ private fun HeroAction(label: String, icon: androidx.compose.ui.graphics.vector.
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = Accent,
             contentColor = Background,
-            disabledContainerColor = Color(0xFF343941),
+            disabledContainerColor = SurfaceHigh,
             disabledContentColor = TextMuted
         ),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),

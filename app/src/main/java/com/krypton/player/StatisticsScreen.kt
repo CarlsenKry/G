@@ -91,7 +91,7 @@ private fun WeeklyListeningCard(days: List<DailyListening>) {
                     Spacer(Modifier.weight(1f))
                     Box(
                         Modifier.width(27.dp).height(height.dp).clip(RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp))
-                            .background(if (hasTime) Brush.verticalGradient(listOf(Color(0xFFB9BEC6), Color(0xFF59616C))) else Brush.verticalGradient(listOf(Color(0xFF343A43), Color(0xFF343A43))))
+                            .background(if (hasTime) Brush.verticalGradient(listOf(Accent, AccentDeep)) else Brush.verticalGradient(listOf(SurfaceHigh, SurfaceHigh)))
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(day.date.format(dateFormat), color = TextMuted, fontSize = 8.sp, maxLines = 1)

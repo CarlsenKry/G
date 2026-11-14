@@ -52,6 +52,7 @@ def static_checks() -> bool:
         "app/build.gradle.kts",
         "app/src/main/AndroidManifest.xml",
         "app/src/main/java/com/krypton/player/MainActivity.kt",
+        "app/src/main/java/com/krypton/player/Themes.kt",
         "app/src/main/java/com/krypton/player/LibraryScreen.kt",
         "app/src/main/java/com/krypton/player/PlaylistScreens.kt",
         "app/src/main/java/com/krypton/player/StatisticsScreen.kt",
@@ -82,6 +83,7 @@ def static_checks() -> bool:
     track_artwork = (ROOT / "app/src/main/java/com/krypton/player/TrackArtwork.kt").read_text(encoding="utf-8")
     playback_service = (ROOT / "app/src/main/java/com/krypton/player/PlaybackService.kt").read_text(encoding="utf-8")
     playback_screens = (ROOT / "app/src/main/java/com/krypton/player/PlaybackScreens.kt").read_text(encoding="utf-8")
+    themes = (ROOT / "app/src/main/java/com/krypton/player/Themes.kt").read_text(encoding="utf-8")
     lockscreen = (ROOT / "app/src/main/java/com/krypton/player/LockScreenActivity.kt").read_text(encoding="utf-8")
     equalizer_screen = (ROOT / "app/src/main/java/com/krypton/player/EqualizerScreen.kt").read_text(encoding="utf-8")
     audio_effects = (ROOT / "app/src/main/java/com/krypton/player/AudioEffects.kt").read_text(encoding="utf-8")
@@ -114,14 +116,23 @@ def static_checks() -> bool:
     results.append(report("Embedded song artwork extracted asynchronously with fallback", all(token in track_artwork for token in ["MediaMetadataRetriever", "embeddedPicture", "Dispatchers.IO", "MusicNote", "LruCache"])))
     results.append(report("Artwork appears in Library, playlist, add-song, queue and statistics rows", all(token in library_screen for token in ["TrackArtwork(track = track"]) and all(token in playlist_screens for token in ["TrackArtwork(track = track", "TrackArtwork(track = availableTracks.first()"]) and "TrackArtwork(item.track" in playback_screens and "TrackArtwork(track = entry.track" in statistics_screen))
     results.append(report("Persistent Library/Queue bottom navigation removed", "NavigationBar(" not in main_activity and "NavigationBarItem(" not in main_activity and "Triple(\"Queue\"" not in main_activity))
-    results.append(report("Mini-player appears only during active playback outside the full Player screen", 'if (isPlaying && controller?.currentMediaItem != null && selectedTab != "Queue")' in main_activity and "MiniPlayerBar(" in main_activity))
-    results.append(report("Mini-player opens the full Player and exposes pause/next controls", 'onOpen = { navigateTo("Queue") }' in main_activity and 'contentDescription = "Pause playback"' in main_activity and 'contentDescription = "Next track"' in main_activity))
+    results.append(report("Mini-player shows while a track is loaded (playing or paused) outside the full Player screen", 'if (controller?.currentMediaItem != null && selectedTab != "Queue")' in main_activity and "MiniPlayerBar(" in main_activity))
+    results.append(report("Mini-player opens the full Player and exposes pause/next controls", 'onOpen = { navigateTo("Queue") }' in main_activity and '"Pause playback"' in main_activity and '"Resume playback"' in main_activity and 'contentDescription = "Next track"' in main_activity))
     results.append(report("Library song selection opens the full Player screen", 'onPlay = { sequence, selected -> startTrackAndOpenPlayer(sequence, selected) }' in main_activity and 'navigateTo("Queue")' in main_activity))
     results.append(report("Tapping the already-playing library song opens Player without restarting it", 'val alreadyPlaying = selected != null && controller?.currentMediaItem?.mediaId == selected.id.toString()' in main_activity and 'if (!alreadyPlaying) onPlay(sequence, selected)' in main_activity))
     results.append(report("Settings action moved to the Library top-right toolbar", 'onSettings = { navigateTo("Settings") }' in main_activity and 'Icon(Icons.Default.Settings, contentDescription = "Settings"' in main_activity and 'Triple("Settings"' not in main_activity))
-    results.append(report("System Back navigates within app instead of exiting at root", 'BackHandler(enabled = true)' in main_activity and 'navigationHistory.removeAt(navigationHistory.lastIndex)' in main_activity))
-    results.append(report("App-wide palette is pure black and neutral charcoal", all(token in main_activity for token in ['Background = Color(0xFF000000)', 'Surface = Color(0xFF0B0D10)', 'Accent = Color(0xFFE9EBEF)'])))
-    results.append(report("Android status and navigation bars use black with light icons", 'WindowCompat.setDecorFitsSystemWindows(window, true)' in main_activity and 'window.statusBarColor = android.graphics.Color.BLACK' in main_activity and 'window.navigationBarColor = android.graphics.Color.BLACK' in main_activity and 'isAppearanceLightNavigationBars = false' in main_activity))
+    results.append(report("System Back navigates within the app and is left to the system at the Library root", 'BackHandler(enabled = queueSheetOpen || selectedTab != "Library")' in main_activity and 'navigationHistory.removeAt(navigationHistory.lastIndex)' in main_activity))
+    results.append(report("Colour tokens forward to the selected theme", all(token in main_activity for token in ['Background: Color get() = ThemeState.current.background', 'Surface: Color get() = ThemeState.current.surface', 'Accent: Color get() = ThemeState.current.accent', 'TextSecondary: Color get() = ThemeState.current.textSecondary'])))
+    results.append(report("Default theme keeps the original pure-black Mono palette", all(token in themes for token in ['background = Color(0xFF000000)', 'surface = Color(0xFF0B0D10)', 'accent = Color(0xFFE9EBEF)', 'fun byId(id: String?): KryptonTheme'])))
+    results.append(report("Six selectable themes persisted in SharedPreferences", all(token in themes for token in ['val all: List<KryptonTheme> = listOf(Mono, Midnight, Ember, Emerald, Violet, Rose)', 'krypton_theme', 'fun select(context: Context']) ))
+    results.append(report("Settings has a visual theme picker and artwork-accent switch", all(token in main_activity for token in ['ThemePickerCard()', 'ThemeTile(', 'ThemeState.select(context, theme)', 'ArtworkAccentCard()', 'ThemeState.setArtworkAccent'])))
+    results.append(report("Status and navigation bars follow the theme with light icons", 'WindowCompat.setDecorFitsSystemWindows(window, true)' in main_activity and 'window.statusBarColor = color' in main_activity and 'window.navigationBarColor = color' in main_activity and 'isAppearanceLightNavigationBars = false' in main_activity and 'SideEffect { applyWindowTheme(activeTheme) }' in main_activity))
+    results.append(report("Library and Statistics colours come from the theme, not hard-coded greys", 'Color(0xFF' not in library_screen and 'Color(0xFF' not in statistics_screen))
+    results.append(report("Seek bar seeks once on release and does not fight playback updates", 'onValueChangeFinished' in playback_screens and 'dragFraction' in playback_screens))
+    results.append(report("Repeat-one has its own icon and status line shows shuffle and repeat", 'Icons.Default.RepeatOne' in playback_screens and '"SHUFFLE ${if (shuffleEnabled) "ON" else "OFF"}  ·  "' in playback_screens))
+    results.append(report("Position is ticked cheaply and queue is not rebuilt every second", 'fun refreshPosition()' in main_activity and 'delay(if (player?.isPlaying == true) 250L else 600L)' in main_activity and 'latestTrackById[item.mediaId]' in main_activity))
+    results.append(report("Notification permission requested on Android 13+", 'Manifest.permission.POST_NOTIFICATIONS' in main_activity and 'requestNotificationPermissionIfNeeded' in main_activity))
+    results.append(report("Previous restarts the track after the first seconds", 'controller?.seekToPrevious()' in main_activity))
     results.append(report("No cyan base palette remains in the app-wide Library surfaces", all(token not in library_screen for token in ['0xFF203C45', '0xFF182A36', '0xFF25213C', '0x3324D1C5']) and '0xFF2D79B8' not in statistics_screen))
     results.append(report("Queue state and controls present", "addMediaItem" in main_activity and "seekToNextMediaItem" in main_activity))
     results.append(report("Media items keep track metadata", "MediaMetadata.Builder()" in main_activity and "setTitle(title)" in main_activity and "setArtist(artist)" in main_activity))
@@ -146,10 +157,10 @@ def static_checks() -> bool:
     results.append(report("Lockscreen slide closes only Krypton surface and leaves system security intact", "onSlideUnlock = { finish() }" in lockscreen and "does not" in lockscreen and "secure PIN/pattern/password" in lockscreen))
     results.append(report("Lockscreen can be opened from Settings", "LockScreenSettingsCard(onOpen = onOpenLockScreen)" in main_activity and "LockScreenActivity::class.java" in main_activity))
     results.append(report("Wing-shaped previous/next and rounded-pill Play/Pause controls", all(token in playback_screens for token in ["WingSkipGlyph(next = false", "WingSkipGlyph(next = true", "RoundedCornerShape(34.dp)", "clickable(onClick = onPlayPause)"])))
-    results.append(report("Background audio focus and unplug handling", "setAudioAttributes(AudioAttributes.DEFAULT, true)" in playback_service and "setHandleAudioBecomingNoisy(true)" in playback_service and "setWakeMode(C.WAKE_MODE_LOCAL)" in playback_service))
+    results.append(report("Background audio focus (music attributes) and unplug handling", "setAudioAttributes(musicAudioAttributes, true)" in playback_service and "C.AUDIO_CONTENT_TYPE_MUSIC" in playback_service and "setHandleAudioBecomingNoisy(true)" in playback_service and "setWakeMode(C.WAKE_MODE_LOCAL)" in playback_service))
     results.append(report("Background playback service releases resources", "player.release()" in playback_service and "mediaSession?.run" in playback_service and "release()" in playback_service))
     results.append(report("Adaptive full Now Playing screen", "BoxWithConstraints" in playback_screens and "artworkSize" in playback_screens and 'Text("NOW PLAYING"' in playback_screens))
-    results.append(report("Player transport controls operate MediaController", all(token in main_activity for token in ["controller?.seekTo(target)", "player.shuffleModeEnabled", "player.repeatMode", "seekToPreviousMediaItem", "seekToNextMediaItem"])))
+    results.append(report("Player transport controls operate MediaController", all(token in main_activity for token in ["controller?.seekTo(target)", "player.shuffleModeEnabled", "player.repeatMode", "seekToPrevious()", "seekToNextMediaItem"])))
     results.append(report("Combined Queue + Player glyph remains available in Player and lockscreen", "QueuePlayerGlyph" in playback_screens and "QueuePlayerGlyph" in lockscreen and "Icons.Default.PlayArrow" in playback_screens))
     results.append(report("Top-right queue icon opens a queue sheet", "onOpenQueue = { queueSheetOpen = true }" in main_activity and "ModalBottomSheet" in playback_screens and "UP NEXT" in playback_screens))
     results.append(report("Right-edge lyrics gesture and tap affordance", "detectHorizontalDragGestures" in playback_screens and "onOpenLyrics" in playback_screens and "LyricsSwipeHandle" in playback_screens))

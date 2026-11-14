@@ -48,7 +48,7 @@ This update includes the agreed player controls, artwork-derived theme accents, 
 ## Main Player + Queue
 
 - There is no persistent bottom Library / Queue tab bar. Selecting any Library song opens the dedicated Now Playing / Queue screen directly; selecting the currently playing song opens it without restarting the track.
-- A compact now-playing bar appears at the bottom of non-Player screens only while a track is actively playing. It shows the current artwork, title and artist, plus pause and next actions. Tapping its body opens Now Playing; it is hidden when playback is paused/stopped and while the full Player screen is open.
+- A compact now-playing bar appears at the bottom of non-Player screens whenever a track is loaded (playing or paused). It shows the current artwork, title and artist, a play/pause and a next action, and a thin progress line. Tapping its body opens Now Playing; it is hidden only while the full Player screen is open or when nothing is loaded.
 - Top-left equalizer icon opens the Equalizer screen; top-right queue icon opens a queue sheet without leaving the player.
 - The main player adapts its artwork size to available width and height rather than using screenshot pixel dimensions. It scrolls on compact-height devices.
 - Player controls include seek/progress, wing-shaped Previous/Next icons, rounded-pill Play/Pause, shuffle and repeat. They operate the existing Media3 MediaController.
@@ -67,7 +67,25 @@ This update includes the agreed player controls, artwork-derived theme accents, 
 
 ## Global navigation and appearance
 
-- The main application theme is pure black with charcoal surfaces and neutral white/grey controls; cyan is no longer the app-wide base accent. Artwork-derived color remains enabled on the Player/Queue and lockscreen.
+- The default theme (Mono) is pure black with charcoal surfaces and neutral white/grey controls. Other themes are selectable in Settings > Appearance (see Themes below). Artwork-derived color remains enabled on the Player/Queue/Lyrics unless switched off in Settings, and on the lockscreen.
 - Settings is opened from the upper-right gear in the Library header, not from a bottom navigation item.
-- The Android system Back action returns through the in-app navigation history. At the Library root it does not close the app unexpectedly.
-- The persistent Library / Queue bottom navigation strip is removed completely. A compact now-playing bar appears only while audio is actively playing on non-Player screens; it disappears when paused/stopped and on the full Player screen.
+- The Android system Back action returns through the in-app navigation history. At the Library root Back is handled by the system (the screen closes, playback keeps running in the service).
+- The persistent Library / Queue bottom navigation strip is removed completely. The compact now-playing bar stays visible while a track is loaded (also when paused, so the Player is always one tap away) and disappears on the full Player screen.
+
+
+## Themes
+
+- Six selectable palettes live in `Themes.kt`: Mono (default, the original black/charcoal look), Midnight, Ember, Emerald, Violet and Rose. Each defines background, three surface levels, accent, deep accent, three text levels and a divider colour.
+- Settings > Appearance shows a 2-column grid of tiles; each tile previews its own palette (background, raised card, accent dot and progress bar). Tapping a tile applies it immediately and saves it in SharedPreferences (`krypton_theme`).
+- All screens read colours through the tokens in `MainActivity.kt` (`Background`, `Surface`, `SurfaceRaised`, `SurfaceHigh`, `Accent`, `AccentDeep`, `TextPrimary`, `TextSecondary`, `TextMuted`, `DividerColor`), which forward to the selected theme. Do not add hard-coded hex colours to screens; add a token instead.
+- Visible theme surfaces: a soft accent glow behind every screen, the Library hero banner and its icon tile, page dots, the header logo tile, the mini-player play button and progress line, the statistics chart bars, settings icons and the player background.
+- Settings > "Artwork colours on Player" (on by default) lets the Player, Queue sheet and Lyrics take their accent from the cover art. Turn it off to always use the theme accent.
+- Status bar, navigation bar and window background follow the theme background.
+
+## Player behaviour notes
+
+- The seek bar follows the finger while dragging and seeks once on release; the position label shows the dragged time.
+- Previous restarts the current track when it has played for more than a few seconds, otherwise it goes to the previous track.
+- Repeat shows a dedicated Repeat-One icon; the status line under the controls shows shuffle and repeat together.
+- Playback position is refreshed every 250 ms while playing; the queue list is rebuilt only on real player events.
+- Playback uses music audio attributes (focus, ducking, headphone-unplug pause). On Android 13+ the notification permission is requested after the storage permission so the media notification and lock-screen controls can appear.

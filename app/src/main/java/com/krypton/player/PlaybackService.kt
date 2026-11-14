@@ -20,16 +20,29 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    // Declared as music so Android applies the right audio focus, ducking and routing rules.
+    private val musicAudioAttributes = AudioAttributes.Builder()
+        .setUsage(C.USAGE_MEDIA)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+        .build()
+
     override fun onCreate() {
         super.onCreate()
         val player = ExoPlayer.Builder(this)
-            .setAudioAttributes(AudioAttributes.DEFAULT, true)
+            .setAudioAttributes(musicAudioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
         player.addAnalyticsListener(audioSessionListener)
         exoPlayer = player
         mediaSession = MediaSession.Builder(this, player).build()
+    }
+
+    // Swiping the app away while paused or empty should not leave an idle service behind.
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        val player = mediaSession?.player
+        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
